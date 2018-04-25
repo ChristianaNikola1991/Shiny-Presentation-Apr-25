@@ -1,0 +1,155 @@
+```{r get_data, include=FALSE}
+library(gapminder)
+library(tibble)
+library(ggplot2)
+library(ggmap)
+library(maptools)
+library(maps)
+library(ggthemes)
+options(scipen = 999)
+library(stringr)
+library(lubridate)
+library(knitr)
+library(forcats)
+library(readxl)
+library(tidyverse)
+library(dplyr)
+library(devtools)
+library(pacman) 
+if(!file.exists("./data")) {dir.create("./data")}
+```
+
+```{r, include=FALSE}
+# Import Data and cleaning up the Data
+TourismData <- "http://api.worldbank.org/v2/en/indicator/ST.INT.ARVL?downloadformat=excel"
+download.file(TourismData, destfile = "./data/tmp.xls", mode = "wb")
+TourismData <- read_excel("./data/tmp.xls")
+
+TourismData <- select(TourismData, "Data Source", "World Development Indicators", "X__38", "X__39", "X__40", "X__41", "X__42", "X__43", "X__44", "X__45", "X__46", "X__47", "X__48", "X__49", "X__50", "X__51", "X__52", "X__53", "X__54", "X__55", "X__56", "X__57", "X__58", "X__59", "X__60") 
+names(TourismData) <- c("country", "country_code", "year1995", "1996", "1997", "1998", "1999", "year2000", "2001", "2002", "2003", "2004", "year2005", "2006", "2007", "2008", "2009", "year2010", "2011", "2012", "2013", "2014", "2015", "year2016", "2017")
+TourismData = TourismData [-1:-4,]
+
+TourismData$year1995 <- as.numeric(TourismData$year1995)
+TourismData$year2000 <- as.numeric(TourismData$year2000)
+TourismData$year2005 <- as.numeric(TourismData$year2005)
+TourismData$year2010 <- as.numeric(TourismData$year2010)
+TourismData$year2016 <- as.numeric(TourismData$year2016)
+
+Regions <- TourismData %>%
+    select(country, year2000, year2016) %>%
+  filter (country %in% c("Arab World", "Central Europe and the Baltics", "Caribbean", "East Asia & Pacific", "Europe & Central Asia", "Euro area", "Latin America & Caribbean", "Middle East & North Africa" , "North America", "Pacific islands" , "Sub-Saharan Africa" , "East Asia & Pacific", "East Asia & Pacific", "Europe & Central Asia", "World")) 
+
+TourismData <- TourismData[-c(5, 34,36, 47, 59, 60, 61, 62, 63, 66, 72, 93, 96, 100, 101, 102, 103, 105, 108, 126, 132, 133, 134, 137, 138, 140, 151, 154, 159, 168, 179, 181, 189, 195, 196, 213, 215, 216, 228,229, 234, 236, 238, 239, 247),]
+```
+
+```{r}
+#Project Plan
+#I downloaded data on international arrivals from 1995 to 2017 from a website called "Our World in Data". Originally, the data is from the World Bank. My plan for this project is to show how international tourism has increased or decreased in certain regions over the past years. In my shiny app I plan to show graphs and hopefully maps of the data. 
+
+MostVisited <- TourismData %>% 
+select(country,year2016) %>%
+  arrange(desc(year2016)) %>%
+  slice(3:12)
+MostVisited
+
+slices <- c(84452000, 77465000, 68175000, 56886000, 50732000, 39478000, 34970000, 34436000, 33729000, 32093000)
+lbls <- c("France", "United States", "Spain", "China", "Italy ", "Turkey", "Germany", "United Kingdon", "Russian Federation", "Mexico")
+pct <- round(slices/sum(slices)*100)
+lbls <- paste(lbls, pct) # add percents to labels
+lbls <- paste(lbls,"%",sep="") # ad % to labels
+pie(slices,labels = lbls, col=rainbow(length(lbls)),
+   main=" 10 Most Visited Countries") 
+
+#The list of most visited countries in 2016 is not very suprising. Clearly the US and many European States are among the most favorites. 
+
+LeastVisited <- TourismData %>%
+select(country, year2016) %>%
+arrange(year2016) %>%
+   slice(1:10)
+LeastVisited
+  
+slices <- c(2400, 3900,  6300, 20300, 21600, 23600, 24000,  25600, 31200, 35000)
+lbls <- c("Tuvalu", "Kiribati", "Marshall Islands", "American Samoa ", "Solomon Islands", "Comoros ", "Sierra Leone", "Sao Tome and Principe", "Micronesia, Fed. Sts.", "Guinea")
+pct <- round(slices/sum(slices)*100)
+lbls <- paste(lbls, pct) # add percents to labels
+lbls <- paste(lbls,"%",sep="") # ad % to labels
+pie(slices,labels = lbls, col=rainbow(length(lbls)),
+   main="10 Least Visited Countries") 
+
+#The list of least visited countries is more suprising. There are either states in Africa or small island states in the Indian Ocean/Pacific. Its important to mention here that many countries with political issues like Syria or Somalia have no data about international tourist arrivals at all and therefore don't show up on the list.
+```
+
+```{r}
+HighestOverallIncrease <- TourismData %>%
+  select(country, year2000, year2016) %>%
+  mutate(Increase = year2016 - year2000) %>%
+  arrange(desc(Increase)) %>%
+  slice (3:12)
+HighestOverallIncrease
+
+slices <- c(32585000, 29839000, 28956000, 22735000, 21272000, 18849000, 17854000, 17790000, 15299000, 14909000)
+lbls <- c("Turkey", "China", "UnitedStates", "Spain", "Thailand", "HongKong", "Germany", "Malaysia", "Japan", "RussianFederation")
+pct <- round(slices/sum(slices)*100)
+lbls <- paste(lbls, pct) # add percents to labels
+lbls <- paste(lbls,"%",sep="") # ad % to labels
+pie (slices,labels = lbls, col=rainbow(length(lbls)),
+   main="Highest Increase in Visitors from 2000 to 2016")
+
+#Over the past 16 years, those are the countries that most gained in popularity. 
+
+```
+
+```{r, include=FALSE}
+library(ggmap)
+library(maptools)
+library(maps)
+
+visited <- c("Turkey", "China","United States", "Spain", "Thailand", "Hong Kong", "Germany", "Malaysia", "Japan", "Russian Federation")
+ll.visited <- geocode(visited)
+visit.x <- ll.visited$lon
+visit.y <- ll.visited$lat
+```
+
+```{r, eval=FALSE}
+map("world", fill=TRUE, col="white", bg="lightblue", ylim=c(-80, 100), mar=c(0,0,0,0))
+points(visit.x,visit.y, col="red", pch=16)
+#code works in the console but not when I try to knit the document
+```
+
+```{r}
+HighestOverallDecrease <- TourismData %>%
+  select(country, year2000, year2016) %>%
+  mutate(Decrease = year2016 - year2000) %>%
+  arrange(Decrease) %>%
+  slice (1:10)
+HighestOverallDecrease
+  
+decrease <- c (-1440000, -1222000, -193000, -135000, -93000, -27000, -23000, -20700, -11400, -10000)
+country <- c ("Canada", "Poland", "Zimbabwe", "Bermuda", "Bahamas", "French_Polynesia", "Northern_Mariana_Islands", "American_Samoa", "Liechtenstein", "Cayman_Islands")
+barplot(decrease, names.arg = country)
+
+#Those countries have lost popularity over the past 16 years. For example the 2 island states in the Carrebean have lost a lot of tourist arrivals in the 2008 financial crisis. 
+```
+
+
+```{r}
+Regions <- Regions %>%
+  mutate(Increase = year2016 - year2000) %>%
+  arrange(desc(Increase))
+Regions
+
+slices <- c(246936000	, 169991700, 110177000, 51372600, 48745400, 43782300, 28364000, 27381000, 19657100)
+lbls <- c("Europe & Central Asia", "East Asia & Pacific", "Euro area", "Middle East & North Africa", "Arab World", "Latin America & Caribbean", "Central Europe and the Baltics", "North America", "Sub-Saharan Africa")
+pct <- round(slices/sum(slices)*100)
+lbls <- paste(lbls, pct) # add percents to labels
+lbls <- paste(lbls,"%",sep="") # ad % to labels
+pie (slices,labels = lbls, col=rainbow(length(lbls)),
+   main="Highest Increase in Visitors per region from 2000 to 2016")
+
+
+#Worldwide visitor numbers have increased by 576.704.000. Looking only at the regions, clearly Europe and East Asia ganied most visitors which is in line with the individual country analysis. Subsaharan Africa has the lowest Increase in visitors.
+```
+
+
+
+
